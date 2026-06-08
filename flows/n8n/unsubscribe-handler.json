@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "description": "Flujo: contacto se da de baja → actualizar Supabase + confirmar baja",
+    "trigger": "Webhook de Brevo — evento 'unsubscribed'",
+    "actions": [
+      "1. Recibe evento unsubscribed de Brevo",
+      "2. Actualiza status='unsubscribed' en Supabase — inmediato, sin delay",
+      "3. Cancela cualquier secuencia activa en Brevo (in_active_sequence)",
+      "4. Registra evento unsubscribed en email_events",
+      "5. Opcional: notificar a Cristina/cliente si el volumen de bajas supera el umbral"
+    ],
+    "notes": [
+      "CRÍTICO: este flujo debe estar activo antes de enviar el primer email.",
+      "El contacto con status='unsubscribed' NUNCA vuelve a recibir emails de marketing.",
+      "Para re-suscribirse, el contacto debe pasar por un nuevo doble opt-in.",
+      "Brevo gestiona automáticamente la supresión en su plataforma. Este flujo actualiza Supabase para mantener la consistencia."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "brevo-unsubscribe-webhook",
+      "name": "Webhook — Brevo unsubscribed",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brevo-events"
+      }
+    },
+    {
+      "id": "filter-unsubscribe-event",
+      "name": "Filter — Solo procesar unsubscribed",
+      "type": "n8n-nodes-base.filter",
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$json.event}}", "operation": "equal", "value2": "unsubscribed" }]
+        }
+      }
+    },
+    {
+      "id": "update-contact-unsubscribed",
+      "name": "Supabase — Actualizar status=unsubscribed",
+      "type": "n8n-nodes-base.supabase",
+      "parameters": {
+        "operation": "update",
+        "tableId": "contacts",
+        "filterType": "string",
+        "filterString": "client_id=eq.{{$env.CLIENT_ID}}&email=eq.{{$json.email}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "unsubscribed" },
+            { "fieldId": "in_active_sequence", "fieldValue": null }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log-unsubscribe-event",
+      "name": "Supabase — Registrar evento unsubscribed",
+      "type": "n8n-nodes-base.supabase",
+      "parameters": {
+        "operation": "create",
+        "tableId": "email_events",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "client_id", "fieldValue": "={{$env.CLIENT_ID}}" },
+            { "fieldId": "email", "fieldValue": "={{$json.email}}" },
+            { "fieldId": "event_type", "fieldValue": "unsubscribed" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "brevo-unsubscribe-webhook": { "main": [["filter-unsubscribe-event"]] },
+    "filter-unsubscribe-event": { "main": [["update-contact-unsubscribed"]] },
+    "update-contact-unsubscribed": { "main": [["log-unsubscribe-event"]] }
+  }
+}

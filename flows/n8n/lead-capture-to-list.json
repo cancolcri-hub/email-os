@@ -1,0 +1,116 @@
+{
+  "_meta": {
+    "description": "Flujo: captación de lead → alta en lista + doble opt-in",
+    "trigger": "Webhook POST desde formulario web (Tally, Typeform, Next.js form)",
+    "actions": [
+      "1. Recibe datos del formulario (email, nombre, fuente, segmento)",
+      "2. Verifica que el email no está ya en estado 'unsubscribed' o 'bounced' en Supabase",
+      "3. Inserta o actualiza el contacto en Supabase con status='pending'",
+      "4. Añade el contacto en Brevo con las etiquetas correspondientes",
+      "5. Envía el email de doble opt-in (confirmación de suscripción) vía Brevo",
+      "6. Espera la confirmación del opt-in (webhook de Brevo 'opt_in_confirmed')",
+      "7. Actualiza status='confirmed' en Supabase y activa la secuencia de bienvenida"
+    ],
+    "variables": {
+      "CLIENT_ID": "desde .env — identifica al cliente en Supabase",
+      "SUPABASE_URL": "desde .env",
+      "SUPABASE_SERVICE_KEY": "desde .env",
+      "BREVO_API_KEY": "desde .env",
+      "N8N_WEBHOOK_URL": "URL de este webhook — configurar en el formulario"
+    },
+    "notes": [
+      "Si el contacto ya existe con status='confirmed', solo actualizar segmento y etiquetas. No re-enviar opt-in.",
+      "Si el contacto existe con status='unsubscribed', no reactivar automáticamente. Requiere acción manual.",
+      "Registrar cada evento (opt_in_sent, opt_in_confirmed) en la tabla email_events."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook — Recibe lead del formulario",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "check-existing-contact",
+      "name": "Supabase — Verificar si el contacto existe",
+      "type": "n8n-nodes-base.supabase",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "contacts",
+        "filterType": "string",
+        "filterString": "client_id=eq.{{$env.CLIENT_ID}}&email=eq.{{$json.email}}"
+      }
+    },
+    {
+      "id": "upsert-contact",
+      "name": "Supabase — Upsert contacto (status=pending)",
+      "type": "n8n-nodes-base.supabase",
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "contacts",
+        "conflictColumns": "client_id,email"
+      }
+    },
+    {
+      "id": "add-brevo-contact",
+      "name": "Brevo — Añadir contacto con etiqueta de segmento",
+      "type": "n8n-nodes-base.sendInBlue",
+      "parameters": {
+        "operation": "upsert",
+        "email": "={{$json.email}}",
+        "additionalFields": {
+          "listIds": [],
+          "attributes": {}
+        }
+      }
+    },
+    {
+      "id": "send-double-optin",
+      "name": "Brevo — Enviar email de confirmación (doble opt-in)",
+      "type": "n8n-nodes-base.sendInBlue",
+      "parameters": {
+        "operation": "sendTransactionalEmail",
+        "to": [{ "email": "={{$json.email}}", "name": "={{$json.name}}" }],
+        "templateId": "BREVO_DOUBLE_OPTIN_TEMPLATE_ID"
+      }
+    },
+    {
+      "id": "log-event",
+      "name": "Supabase — Registrar evento opt_in_sent",
+      "type": "n8n-nodes-base.supabase",
+      "parameters": {
+        "operation": "create",
+        "tableId": "email_events",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "client_id", "fieldValue": "={{$env.CLIENT_ID}}" },
+            { "fieldId": "email", "fieldValue": "={{$json.email}}" },
+            { "fieldId": "event_type", "fieldValue": "opt_in_sent" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "webhook-response",
+      "name": "Respuesta al formulario (200 OK)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\": \"pending_confirmation\"}"
+      }
+    }
+  ],
+  "connections": {
+    "webhook-trigger": { "main": [["check-existing-contact"]] },
+    "check-existing-contact": { "main": [["upsert-contact"]] },
+    "upsert-contact": { "main": [["add-brevo-contact"]] },
+    "add-brevo-contact": { "main": [["send-double-optin"]] },
+    "send-double-optin": { "main": [["log-event"]] },
+    "log-event": { "main": [["webhook-response"]] }
+  }
+}

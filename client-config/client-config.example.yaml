@@ -1,0 +1,72 @@
+# Email OS Template — Configuración por cliente
+# Copiar este archivo a clientes/<nombre-cliente>/client-config.yaml
+# Todo lo que varía por cliente vive aquí. El código nunca hardcodea datos de cliente.
+
+# === IDENTIDAD ===
+client:
+  id: "nombre-cliente"                    # snake_case, sin espacios — coincide con client_id en Supabase
+  name: "Nombre del Cliente S.L."
+  brand_short: "NombreCorto"              # Nombre de marca para cabeceras y firmamento
+  sector: "clinica-dental"               # clinica-dental | fisio | estetica | abogado | inmobiliaria | academia | ecommerce | otro
+  website: "https://ejemplo.es"
+  privacy_policy_url: "https://ejemplo.es/privacidad"
+  logo_url: ""                            # URL pública del logo (para Header.tsx)
+  primary_color: "#0066CC"               # Color principal de la marca (hex)
+
+# === LEGAL (responsable del tratamiento = el CLIENTE, no Digital Project) ===
+legal:
+  responsible_name: "Nombre del Cliente S.L."
+  responsible_address: "C/ Ejemplo 1, 41001 Sevilla"
+  responsible_email: "info@ejemplo.es"
+  dpa_signed: false                       # OBLIGATORIO: cambiar a true solo tras firmar el DPA con Digital Project
+                                          # Si es false, el sistema bloquea cualquier envío
+
+# === ENVÍO (Brevo) ===
+sending:
+  domain: "news.ejemplo.es"              # Subdominio dedicado de marketing (nunca el dominio principal)
+  from_name: "Nombre del Cliente"
+  from_email: "hola@news.ejemplo.es"
+  reply_to: "info@ejemplo.es"            # A dónde van las respuestas — normalmente el email principal del cliente
+
+# === SEGMENTOS ===
+# Definir los segmentos activos para este cliente
+# Cada segmento se crea como etiqueta en Brevo y como valor del campo segment en Supabase
+segments:
+  - id: "leads-nuevos"
+    label: "Leads nuevos"
+    description: "Contactos recién captados, en secuencia de bienvenida"
+  - id: "nurturing"
+    label: "En nurturing"
+    description: "Leads activos recibiendo secuencia de nurturing"
+  - id: "clientes"
+    label: "Clientes activos"
+    description: "Han contratado al menos un servicio"
+  - id: "reactivacion"
+    label: "Reactivación"
+    description: "Sin actividad en 90+ días"
+
+# === TONO DE VOZ ===
+voice:
+  tone: "cercano, profesional, directo"  # Adaptar al sector y personalidad del cliente
+  language: "es-ES"
+  emoji_policy: "ninguno"                # ninguno | minimo | moderado
+
+# === CONVERSIÓN ===
+conversion:
+  primary_cta: "Pide tu cita gratuita"   # Texto del botón principal en todos los emails
+  conversion_channel: "whatsapp"         # whatsapp | calendario | formulario | telefono
+  whatsapp_number: ""                    # Solo si conversion_channel es whatsapp. Formato: +34XXXXXXXXX
+  booking_url: ""                        # Solo si conversion_channel es calendario (Calendly, Cal.com)
+  form_url: ""                           # Solo si conversion_channel es formulario
+
+# === CANALES HERMANOS ===
+# Indica qué otros canales de Digital Project tiene activos este cliente
+# Permite que el sistema pause emails si el lead convierte por otro canal
+channels:
+  whatsapp_os: false                     # true si tiene el asistente WhatsApp de Digital Project
+  linkedin_os: false                     # true si tiene el OS de LinkedIn
+
+# === PLAYBOOK DE SECTOR ===
+# El playbook base que se usa para las secuencias de nurturing
+# Ver flows/playbooks/ para los disponibles
+playbook: "clinica-dental"              # clinica-dental | fisio | estetica | abogado | inmobiliaria | generico

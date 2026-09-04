@@ -1,65 +1,69 @@
 {
-  "_meta": {
-    "description": "Flujo: captación de lead → alta en lista + doble opt-in",
-    "trigger": "Webhook POST desde formulario web (Tally, Typeform, Next.js form)",
-    "actions": [
-      "1. Recibe datos del formulario (email, nombre, fuente, segmento)",
-      "2. Verifica que el email no está ya en estado 'unsubscribed' o 'bounced' en Supabase",
-      "3. Inserta o actualiza el contacto en Supabase con status='pending'",
-      "4. Añade el contacto en Brevo con las etiquetas correspondientes",
-      "5. Envía el email de doble opt-in (confirmación de suscripción) vía Brevo",
-      "6. Espera la confirmación del opt-in (webhook de Brevo 'opt_in_confirmed')",
-      "7. Actualiza status='confirmed' en Supabase y activa la secuencia de bienvenida"
-    ],
-    "variables": {
-      "CLIENT_ID": "desde .env — identifica al cliente en Supabase",
-      "SUPABASE_URL": "desde .env",
-      "SUPABASE_SERVICE_KEY": "desde .env",
-      "BREVO_API_KEY": "desde .env",
-      "N8N_WEBHOOK_URL": "URL de este webhook — configurar en el formulario"
-    },
-    "notes": [
-      "Si el contacto ya existe con status='confirmed', solo actualizar segmento y etiquetas. No re-enviar opt-in.",
-      "Si el contacto existe con status='unsubscribed', no reactivar automáticamente. Requiere acción manual.",
-      "Registrar cada evento (opt_in_sent, opt_in_confirmed) en la tabla email_events."
-    ]
-  },
+  "name": "Lead Capture — Formulario → Supabase + Brevo (doble opt-in)",
   "nodes": [
     {
-      "id": "webhook-trigger",
-      "name": "Webhook — Recibe lead del formulario",
-      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "content": "## Flujo: captación de lead → alta en lista + doble opt-in\n**Trigger:** Webhook POST desde formulario web (Tally, Typeform, Next.js form)\n\n**Pasos:**\n- 1. Recibe datos del formulario (email, nombre, fuente, segmento)\n- 2. Verifica que el email no está ya en estado 'unsubscribed' o 'bounced' en Supabase\n- 3. Inserta o actualiza el contacto en Supabase con status='pending'\n- 4. Añade el contacto en Brevo con las etiquetas correspondientes\n- 5. Envía el email de doble opt-in (confirmación de suscripción) vía Brevo\n- 6. Espera la confirmación del opt-in (webhook de Brevo 'opt_in_confirmed')\n- 7. Actualiza status='confirmed' en Supabase y activa la secuencia de bienvenida\n\n**Notas:**\n- Si el contacto ya existe con status='confirmed', solo actualizar segmento y etiquetas. No re-enviar opt-in.\n- Si el contacto existe con status='unsubscribed', no reactivar automáticamente. Requiere acción manual.\n- Registrar cada evento (opt_in_sent, opt_in_confirmed) en la tabla email_events.\n\n**Variables (.env):**\n- `CLIENT_ID` — desde .env — identifica al cliente en Supabase\n- `SUPABASE_URL` — desde .env\n- `SUPABASE_SERVICE_KEY` — desde .env\n- `BREVO_API_KEY` — desde .env\n- `N8N_WEBHOOK_URL` — URL de este webhook — configurar en el formulario",
+        "height": 200,
+        "width": 1600,
+        "color": 4
+      },
+      "id": "sticky-doc",
+      "name": "Documentación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        40
+      ]
+    },
+    {
       "parameters": {
         "httpMethod": "POST",
         "path": "lead-capture",
         "responseMode": "responseNode"
-      }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook — Recibe lead del formulario",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
     },
     {
-      "id": "check-existing-contact",
-      "name": "Supabase — Verificar si el contacto existe",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "getAll",
         "tableId": "contacts",
         "filterType": "string",
         "filterString": "client_id=eq.{{$env.CLIENT_ID}}&email=eq.{{$json.email}}"
-      }
+      },
+      "id": "check-existing-contact",
+      "name": "Supabase — Verificar si el contacto existe",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
     },
     {
-      "id": "upsert-contact",
-      "name": "Supabase — Upsert contacto (status=pending)",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "upsert",
         "tableId": "contacts",
         "conflictColumns": "client_id,email"
-      }
+      },
+      "id": "upsert-contact",
+      "name": "Supabase — Upsert contacto (status=pending)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
     },
     {
-      "id": "add-brevo-contact",
-      "name": "Brevo — Añadir contacto con etiqueta de segmento",
-      "type": "n8n-nodes-base.sendInBlue",
       "parameters": {
         "operation": "upsert",
         "email": "={{$json.email}}",
@@ -67,50 +71,150 @@
           "listIds": [],
           "attributes": {}
         }
-      }
+      },
+      "id": "add-brevo-contact",
+      "name": "Brevo — Añadir contacto con etiqueta de segmento",
+      "type": "n8n-nodes-base.sendInBlue",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
     },
     {
+      "parameters": {
+        "operation": "sendTransactionalEmail",
+        "to": [
+          {
+            "email": "={{$json.email}}",
+            "name": "={{$json.name}}"
+          }
+        ],
+        "templateId": "BREVO_DOUBLE_OPTIN_TEMPLATE_ID"
+      },
       "id": "send-double-optin",
       "name": "Brevo — Enviar email de confirmación (doble opt-in)",
       "type": "n8n-nodes-base.sendInBlue",
-      "parameters": {
-        "operation": "sendTransactionalEmail",
-        "to": [{ "email": "={{$json.email}}", "name": "={{$json.name}}" }],
-        "templateId": "BREVO_DOUBLE_OPTIN_TEMPLATE_ID"
-      }
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
     },
     {
-      "id": "log-event",
-      "name": "Supabase — Registrar evento opt_in_sent",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "create",
         "tableId": "email_events",
         "fieldsUi": {
           "fieldValues": [
-            { "fieldId": "client_id", "fieldValue": "={{$env.CLIENT_ID}}" },
-            { "fieldId": "email", "fieldValue": "={{$json.email}}" },
-            { "fieldId": "event_type", "fieldValue": "opt_in_sent" }
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{$env.CLIENT_ID}}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{$json.email}}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "opt_in_sent"
+            }
           ]
         }
-      }
+      },
+      "id": "log-event",
+      "name": "Supabase — Registrar evento opt_in_sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
     },
     {
-      "id": "webhook-response",
-      "name": "Respuesta al formulario (200 OK)",
-      "type": "n8n-nodes-base.respondToWebhook",
       "parameters": {
         "respondWith": "json",
         "responseBody": "{\"status\": \"pending_confirmation\"}"
-      }
+      },
+      "id": "webhook-response",
+      "name": "Respuesta al formulario (200 OK)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ]
     }
   ],
   "connections": {
-    "webhook-trigger": { "main": [["check-existing-contact"]] },
-    "check-existing-contact": { "main": [["upsert-contact"]] },
-    "upsert-contact": { "main": [["add-brevo-contact"]] },
-    "add-brevo-contact": { "main": [["send-double-optin"]] },
-    "send-double-optin": { "main": [["log-event"]] },
-    "log-event": { "main": [["webhook-response"]] }
+    "Webhook — Recibe lead del formulario": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Verificar si el contacto existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Verificar si el contacto existe": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Upsert contacto (status=pending)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Upsert contacto (status=pending)": {
+      "main": [
+        [
+          {
+            "node": "Brevo — Añadir contacto con etiqueta de segmento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brevo — Añadir contacto con etiqueta de segmento": {
+      "main": [
+        [
+          {
+            "node": "Brevo — Enviar email de confirmación (doble opt-in)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brevo — Enviar email de confirmación (doble opt-in)": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Registrar evento opt_in_sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Registrar evento opt_in_sent": {
+      "main": [
+        [
+          {
+            "node": "Respuesta al formulario (200 OK)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

@@ -59,7 +59,7 @@ Pasos para poner en marcha el Email OS para un cliente nuevo. Seguir en orden.
   - [ ] Añadir registro DMARC al DNS del cliente
   - [ ] Esperar propagación DNS (hasta 48h)
 - [ ] Verificar que Brevo marca el dominio como verificado
-- [ ] Ver `docs/resend-setup.md` para guía detallada de DNS
+- [ ] Ver `docs/sending-domain-setup.md` para guía detallada de DNS
 
 ## Paso 5 — Contactos iniciales
 

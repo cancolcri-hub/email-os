@@ -60,7 +60,7 @@ cp .env.example clientes/nombre-cliente/.env
 # Ejecutar database/contacts-schema.sql en el proyecto Supabase del cliente
 
 # 5. Verificar el dominio de envío en Brevo
-# Ver docs/resend-setup.md (aplica también a Brevo para DNS)
+# Ver docs/sending-domain-setup.md (aplica también a Brevo para DNS)
 
 # 6. Importar los flujos n8n
 # Ver flows/n8n/ — importar JSON en la instancia n8n del cliente

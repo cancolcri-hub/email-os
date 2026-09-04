@@ -1,100 +1,184 @@
 {
-  "_meta": {
-    "description": "Flujo: contacto confirmado → secuencia de bienvenida en Brevo",
-    "trigger": "Webhook de Brevo — evento 'opt_in_confirmed' (o evento personalizado desde Supabase)",
-    "actions": [
-      "1. Recibe confirmación de opt-in de Brevo",
-      "2. Actualiza status='confirmed' en Supabase",
-      "3. Registra evento opt_in_confirmed en email_events",
-      "4. Añade el contacto a la automation de bienvenida en Brevo",
-      "5. Registra el inicio de la secuencia en el campo in_active_sequence de contacts"
-    ],
-    "brevo_automation": {
-      "name": "Welcome Sequence",
-      "emails": [
-        { "delay": "0 min", "template": "WelcomeEmail — entrega del lead magnet" },
-        { "delay": "2 days", "template": "NurturingEmail — email 1 (problema común)" },
-        { "delay": "5 days", "template": "NurturingEmail — email 2 (recurso)" },
-        { "delay": "10 days", "template": "NurturingEmail — email 3 (caso real)" }
-      ],
-      "exit_conditions": [
-        "El contacto reserva una llamada (webhook de Calendly/Cal.com)",
-        "El contacto responde al email (manual — pausar secuencia)",
-        "El contacto se da de baja"
-      ]
-    },
-    "notes": [
-      "La automation en Brevo se configura manualmente con los templates de emails/templates/.",
-      "Este flujo n8n solo gestiona el trigger inicial y la actualización de estado en Supabase.",
-      "Si el cliente tiene WhatsApp OS activo, notificar también al CRM de WhatsApp vía webhook."
-    ]
-  },
+  "name": "Welcome Sequence — Opt-in confirmado → Automation Brevo",
   "nodes": [
     {
-      "id": "brevo-optin-webhook",
-      "name": "Webhook — Brevo opt_in_confirmed",
-      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "content": "## Flujo: contacto confirmado → secuencia de bienvenida en Brevo\n**Trigger:** Webhook de Brevo — evento 'opt_in_confirmed' (o evento personalizado desde Supabase)\n\n**Pasos:**\n- 1. Recibe confirmación de opt-in de Brevo\n- 2. Actualiza status='confirmed' en Supabase\n- 3. Registra evento opt_in_confirmed en email_events\n- 4. Añade el contacto a la automation de bienvenida en Brevo\n- 5. Registra el inicio de la secuencia en el campo in_active_sequence de contacts\n\n**Notas:**\n- La automation en Brevo se configura manualmente con los templates de emails/templates/.\n- Este flujo n8n solo gestiona el trigger inicial y la actualización de estado en Supabase.\n- Si el cliente tiene WhatsApp OS activo, notificar también al CRM de WhatsApp vía webhook.\n\n**Automation Brevo — Welcome Sequence:**\n- 0 min → WelcomeEmail — entrega del lead magnet\n- 2 days → NurturingEmail — email 1 (problema común)\n- 5 days → NurturingEmail — email 2 (recurso)\n- 10 days → NurturingEmail — email 3 (caso real)\nSalidas: El contacto reserva una llamada (webhook de Calendly/Cal.com); El contacto responde al email (manual — pausar secuencia); El contacto se da de baja",
+        "height": 200,
+        "width": 1160,
+        "color": 4
+      },
+      "id": "sticky-doc",
+      "name": "Documentación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        40
+      ]
+    },
+    {
       "parameters": {
         "httpMethod": "POST",
         "path": "brevo-events"
-      }
+      },
+      "id": "brevo-optin-webhook",
+      "name": "Webhook — Brevo opt_in_confirmed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
     },
     {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{$json.event}}",
+              "rightValue": "opt_in_confirmed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
       "id": "filter-optin-event",
       "name": "Filter — Solo procesar opt_in_confirmed",
       "type": "n8n-nodes-base.filter",
-      "parameters": {
-        "conditions": {
-          "string": [{ "value1": "={{$json.event}}", "operation": "equal", "value2": "opt_in_confirmed" }]
-        }
-      }
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
     },
     {
-      "id": "update-contact-confirmed",
-      "name": "Supabase — Actualizar status=confirmed",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "update",
         "tableId": "contacts",
         "filterType": "string",
         "filterString": "client_id=eq.{{$env.CLIENT_ID}}&email=eq.{{$json.email}}"
-      }
+      },
+      "id": "update-contact-confirmed",
+      "name": "Supabase — Actualizar status=confirmed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
     },
     {
-      "id": "log-confirmed-event",
-      "name": "Supabase — Registrar evento opt_in_confirmed",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "create",
         "tableId": "email_events",
         "fieldsUi": {
           "fieldValues": [
-            { "fieldId": "client_id", "fieldValue": "={{$env.CLIENT_ID}}" },
-            { "fieldId": "email", "fieldValue": "={{$json.email}}" },
-            { "fieldId": "event_type", "fieldValue": "opt_in_confirmed" }
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{$env.CLIENT_ID}}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{$json.email}}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "opt_in_confirmed"
+            }
           ]
         }
-      }
+      },
+      "id": "log-confirmed-event",
+      "name": "Supabase — Registrar evento opt_in_confirmed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
     },
     {
-      "id": "trigger-brevo-automation",
-      "name": "Brevo — Añadir a automation Welcome Sequence",
-      "type": "n8n-nodes-base.httpRequest",
       "parameters": {
         "method": "POST",
         "url": "https://api.brevo.com/v3/contacts/doubleOptinConfirmation",
         "authentication": "genericCredentialType",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "api-key", "value": "={{$env.BREVO_API_KEY}}" }]
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{$env.BREVO_API_KEY}}"
+            }
+          ]
         }
-      }
+      },
+      "id": "trigger-brevo-automation",
+      "name": "Brevo — Añadir a automation Welcome Sequence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ]
     }
   ],
   "connections": {
-    "brevo-optin-webhook": { "main": [["filter-optin-event"]] },
-    "filter-optin-event": { "main": [["update-contact-confirmed"]] },
-    "update-contact-confirmed": { "main": [["log-confirmed-event"]] },
-    "log-confirmed-event": { "main": [["trigger-brevo-automation"]] }
+    "Webhook — Brevo opt_in_confirmed": {
+      "main": [
+        [
+          {
+            "node": "Filter — Solo procesar opt_in_confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter — Solo procesar opt_in_confirmed": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Actualizar status=confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Actualizar status=confirmed": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Registrar evento opt_in_confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Registrar evento opt_in_confirmed": {
+      "main": [
+        [
+          {
+            "node": "Brevo — Añadir a automation Welcome Sequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

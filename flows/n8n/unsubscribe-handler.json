@@ -1,45 +1,67 @@
 {
-  "_meta": {
-    "description": "Flujo: contacto se da de baja → actualizar Supabase + confirmar baja",
-    "trigger": "Webhook de Brevo — evento 'unsubscribed'",
-    "actions": [
-      "1. Recibe evento unsubscribed de Brevo",
-      "2. Actualiza status='unsubscribed' en Supabase — inmediato, sin delay",
-      "3. Cancela cualquier secuencia activa en Brevo (in_active_sequence)",
-      "4. Registra evento unsubscribed en email_events",
-      "5. Opcional: notificar a Cristina/cliente si el volumen de bajas supera el umbral"
-    ],
-    "notes": [
-      "CRÍTICO: este flujo debe estar activo antes de enviar el primer email.",
-      "El contacto con status='unsubscribed' NUNCA vuelve a recibir emails de marketing.",
-      "Para re-suscribirse, el contacto debe pasar por un nuevo doble opt-in.",
-      "Brevo gestiona automáticamente la supresión en su plataforma. Este flujo actualiza Supabase para mantener la consistencia."
-    ]
-  },
+  "name": "Unsubscribe Handler — Brevo → Supabase (GDPR)",
   "nodes": [
     {
-      "id": "brevo-unsubscribe-webhook",
-      "name": "Webhook — Brevo unsubscribed",
-      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "content": "## Flujo: contacto se da de baja → actualizar Supabase + confirmar baja\n**Trigger:** Webhook de Brevo — evento 'unsubscribed'\n\n**Pasos:**\n- 1. Recibe evento unsubscribed de Brevo\n- 2. Actualiza status='unsubscribed' en Supabase — inmediato, sin delay\n- 3. Cancela cualquier secuencia activa en Brevo (in_active_sequence)\n- 4. Registra evento unsubscribed en email_events\n- 5. Opcional: notificar a Cristina/cliente si el volumen de bajas supera el umbral\n\n**Notas:**\n- CRÍTICO: este flujo debe estar activo antes de enviar el primer email.\n- El contacto con status='unsubscribed' NUNCA vuelve a recibir emails de marketing.\n- Para re-suscribirse, el contacto debe pasar por un nuevo doble opt-in.\n- Brevo gestiona automáticamente la supresión en su plataforma. Este flujo actualiza Supabase para mantener la consistencia.",
+        "height": 200,
+        "width": 940,
+        "color": 4
+      },
+      "id": "sticky-doc",
+      "name": "Documentación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        40
+      ]
+    },
+    {
       "parameters": {
         "httpMethod": "POST",
         "path": "brevo-events"
-      }
+      },
+      "id": "brevo-unsubscribe-webhook",
+      "name": "Webhook — Brevo unsubscribed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
     },
     {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{$json.event}}",
+              "rightValue": "unsubscribed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
       "id": "filter-unsubscribe-event",
       "name": "Filter — Solo procesar unsubscribed",
       "type": "n8n-nodes-base.filter",
-      "parameters": {
-        "conditions": {
-          "string": [{ "value1": "={{$json.event}}", "operation": "equal", "value2": "unsubscribed" }]
-        }
-      }
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
     },
     {
-      "id": "update-contact-unsubscribed",
-      "name": "Supabase — Actualizar status=unsubscribed",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "update",
         "tableId": "contacts",
@@ -47,32 +69,93 @@
         "filterString": "client_id=eq.{{$env.CLIENT_ID}}&email=eq.{{$json.email}}",
         "fieldsUi": {
           "fieldValues": [
-            { "fieldId": "status", "fieldValue": "unsubscribed" },
-            { "fieldId": "in_active_sequence", "fieldValue": null }
+            {
+              "fieldId": "status",
+              "fieldValue": "unsubscribed"
+            },
+            {
+              "fieldId": "in_active_sequence",
+              "fieldValue": null
+            }
           ]
         }
-      }
+      },
+      "id": "update-contact-unsubscribed",
+      "name": "Supabase — Actualizar status=unsubscribed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
     },
     {
-      "id": "log-unsubscribe-event",
-      "name": "Supabase — Registrar evento unsubscribed",
-      "type": "n8n-nodes-base.supabase",
       "parameters": {
         "operation": "create",
         "tableId": "email_events",
         "fieldsUi": {
           "fieldValues": [
-            { "fieldId": "client_id", "fieldValue": "={{$env.CLIENT_ID}}" },
-            { "fieldId": "email", "fieldValue": "={{$json.email}}" },
-            { "fieldId": "event_type", "fieldValue": "unsubscribed" }
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{$env.CLIENT_ID}}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{$json.email}}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "unsubscribed"
+            }
           ]
         }
-      }
+      },
+      "id": "log-unsubscribe-event",
+      "name": "Supabase — Registrar evento unsubscribed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
     }
   ],
   "connections": {
-    "brevo-unsubscribe-webhook": { "main": [["filter-unsubscribe-event"]] },
-    "filter-unsubscribe-event": { "main": [["update-contact-unsubscribed"]] },
-    "update-contact-unsubscribed": { "main": [["log-unsubscribe-event"]] }
+    "Webhook — Brevo unsubscribed": {
+      "main": [
+        [
+          {
+            "node": "Filter — Solo procesar unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter — Solo procesar unsubscribed": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Actualizar status=unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — Actualizar status=unsubscribed": {
+      "main": [
+        [
+          {
+            "node": "Supabase — Registrar evento unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }
